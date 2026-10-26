@@ -290,7 +290,11 @@
 
         <div class="field" style="margin-top:10px;">
           <label class="label" for="rvb-server-ip">Scoring Server IP / Hostname</label>
-          <input type="text" id="rvb-server-ip" value="localhost" placeholder="localhost or 10.0.0.42" />
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="rvb-server-ip" value="192.168.137.100" placeholder="192.168.137.100 or rpi-fms.local" />
+            <button class="btn-neutral" id="btn-rvb-find" style="flex:0 0 auto; padding:10px 14px;" onclick="findRvbServer()">Find</button>
+          </div>
+          <div id="rvb-connection" class="muted" style="margin-top:6px; min-height:1em;"></div>
         </div>
 
         <div class="field" style="margin-top:10px;">
@@ -417,7 +421,7 @@
         document.getElementById("rvb-blue2").value = data.rvbBlue2 ?? 2;
         document.getElementById("rvb-red1").value = data.rvbRed1 ?? 3;
         document.getElementById("rvb-red2").value = data.rvbRed2 ?? 4;
-        document.getElementById("rvb-server-ip").value = data.rvbServerIp ?? "localhost";
+        setServerIpFromServer(data.rvbServerIp);
         currentWinner = data.winner ?? null;
       }
 
@@ -555,8 +559,10 @@
           rvbBlue2: parseInt(document.getElementById("rvb-blue2").value),
           rvbRed1: parseInt(document.getElementById("rvb-red1").value),
           rvbRed2: parseInt(document.getElementById("rvb-red2").value),
-          rvbServerIp: document.getElementById("rvb-server-ip").value.trim() || "localhost",
         };
+        // Only send the IP when the operator changed it, so a host found by discovery isn't overwritten
+        const typedIp = document.getElementById("rvb-server-ip").value.trim();
+        if (typedIp !== serverIpFromServer) body.rvbServerIp = typedIp;
         try {
           const res = await fetch("/api/state", {
             method: "POST",
@@ -565,7 +571,7 @@
           });
           if (!res.ok) { flash("RvB config save failed"); return false; }
           const data = await res.json();
-          document.getElementById("rvb-server-ip").value = data.rvbServerIp;
+          setServerIpFromServer(data.rvbServerIp, true);
           if (showFlash) flash("RvB config updated!");
           return true;
         } catch {
@@ -692,7 +698,7 @@
         const parts = [];
         if (name) parts.push(name);
         if (members) parts.push(members);
-        el.textContent = parts.join(" — ");
+        el.textContent = parts.join(" - ");
       }
 
       async function pickRvbWinner(team) {
@@ -712,7 +718,7 @@
           });
           const text = await res.text();
           if (!res.ok) { flash(`Export failed: ${text}`); return; }
-          flash(team === "team1" ? "Blue wins — exported" : "Red wins — exported");
+          flash(team === "team1" ? "Blue wins - exported" : "Red wins - exported");
         } catch {
           flash("Export error");
         } finally {
@@ -761,6 +767,7 @@
       async function refreshRvbScores(showFlash = true) {
         try {
           const res = await fetch("/api/rvb-scores");
+          rvbReachable = res.ok;
           if (!res.ok) {
             if (showFlash) flash("Failed to load RvB scores");
             return;
@@ -780,6 +787,65 @@
         }
       }
 
+      let serverIpFromServer = null;
+      let rvbReachable = null;
+
+      // Mirrors the server's scoring-server IP into the input, unless the operator is editing it
+      function setServerIpFromServer(ip, force = false) {
+        if (!ip) return;
+        const input = document.getElementById("rvb-server-ip");
+        const untouched = serverIpFromServer === null || input.value.trim() === serverIpFromServer;
+        if (force || (document.activeElement !== input && untouched)) input.value = ip;
+        serverIpFromServer = ip;
+      }
+
+      function renderRvbConnection(d) {
+        const el = document.getElementById("rvb-connection");
+        let text = "";
+        let color = "";
+        if (d.status === "searching") {
+          text = "Searching for the scoring server...";
+        } else if (rvbReachable) {
+          text = `Connected to ${d.serverIp}` + (d.status === "found" && d.host === d.serverIp ? " (auto-detected)" : "");
+          color = "#2ecc71";
+        } else if (rvbReachable === false) {
+          text = d.status === "not-found"
+            ? "Can't find the scoring server. Check the Pi and the Ethernet cable, or enter its address."
+            : `Can't reach ${d.serverIp}`;
+          color = "#ec7063";
+        }
+        el.textContent = text;
+        el.style.color = color;
+      }
+
+      async function refreshRvbDiscovery() {
+        try {
+          const res = await fetch("/api/rvb-discovery");
+          if (!res.ok) return;
+          const d = await res.json();
+          setServerIpFromServer(d.serverIp);
+          renderRvbConnection(d);
+        } catch { /* connection errors are reported by the scores poll */ }
+      }
+
+      async function findRvbServer() {
+        setButtonLoading("btn-rvb-find", "Finding...", true);
+        renderRvbConnection({ status: "searching" });
+        try {
+          const res = await fetch("/api/rvb-discovery", { method: "POST" });
+          if (!res.ok) { flash("Search failed"); return; }
+          const d = await res.json();
+          setServerIpFromServer(d.serverIp, true);
+          await refreshRvbScores(false);
+          renderRvbConnection(d);
+          flash(d.host ? `Found scoring server at ${d.host}` : "No scoring server found");
+        } catch {
+          flash("Connection error");
+        } finally {
+          setButtonLoading("btn-rvb-find", "Finding...", false);
+        }
+      }
+
       async function refreshRvbScoresManual() {
         setButtonLoading("btn-rvb-refresh", "Refreshing...", true);
         await refreshRvbScores(false);
@@ -795,8 +861,10 @@
       }
 
       load();
-      setInterval(() => {
-        if (gameMode === "rvb") refreshRvbScores(false);
+      setInterval(async () => {
+        if (gameMode !== "rvb") return;
+        await refreshRvbScores(false);
+        await refreshRvbDiscovery();
       }, 1000);
     </script>
   </body>

@@ -9,8 +9,8 @@ Open `http://localhost:3000/` in a web browser. The admin panel is divided into 
 ### Switching Game Modes
 
 At the top of the page, use the **Game Mode** dropdown to switch between:
-- **Sumo** — 1v1 matches with timer
-- **Red vs Blue** — 2v2 alliance matches with live scoring
+- **Sumo** - 1v1 matches with timer
+- **Red vs Blue** - 2v2 alliance matches with live scoring
 
 The overlay automatically switches layouts when you change modes.
 
@@ -67,7 +67,7 @@ If on-deck data is loaded from the sheet, the overlay shows the next teams above
 
 ### Configuration
 
-1. Enter the **Scoring Server IP / Hostname** (e.g., `localhost` or `192.168.1.50`). Port is fixed at `8080`.
+1. Check the **Scoring Server IP / Hostname**. It defaults to the Pi's Ethernet address, `192.168.137.100`, and the dashboard searches for the Pi automatically if that stops answering. The line under the field shows whether it's connected. Click **Find** to search now, or type an address (e.g. `localhost` for simulation mode) to override it. Port is fixed at `8080`.
 2. Enter the **Match Number**.
 3. Enter the **Blue Alliance** team numbers (2 teams) and **Red Alliance** team numbers (2 teams).
 4. You can also click **Load from Sheet** to populate these fields from the spreadsheet.
@@ -103,23 +103,23 @@ The overlay (`/overlay`) is designed to be used as an OBS Browser Source. It pol
 
 ### Sumo Overlay Elements
 
-- **Match Badge** — top-right, shows match number
-- **Timer** — top-right below badge, hidden until match starts
-- **Team Boxes** — bottom-left (Blue) and bottom-right (Red)
-- **Arrows** — center, shows randomized direction when match info is set
-- **On-Deck Labels** — above team boxes, shown only when data exists
-- **Winner Banner** — center, hides everything else when a winner is set
+- **Match Badge** - top-right, shows match number
+- **Timer** - top-right below badge, hidden until match starts
+- **Team Boxes** - bottom-left (Blue) and bottom-right (Red)
+- **Arrows** - center, shows randomized direction when match info is set
+- **On-Deck Labels** - above team boxes, shown only when data exists
+- **Winner Banner** - center, hides everything else when a winner is set
 
 ### RvB Overlay Elements
 
-- **Header** — top-center, shows match phase and time remaining
-- **Blue Alliance Card** — bottom-left, shows total score, auto, penalties, and team numbers
-- **Red Alliance Card** — bottom-right, same info for Red
+- **Header** - top-center, shows match phase and time remaining
+- **Blue Alliance Card** - bottom-left, shows total score, auto, penalties, and team numbers
+- **Red Alliance Card** - bottom-right, same info for Red
 
 ### Important Overlay Rules
 
 - When a **winner is set**, all match elements (badge, timer, teams, arrows) are hidden and only the **winner banner** is shown.
-- The overlay background is **transparent** — it composites over your video feed.
+- The overlay background is **transparent** - it composites over your video feed.
 - The overlay automatically switches between Sumo and RvB layouts when the game mode changes.
 
 ---
@@ -136,7 +136,7 @@ The overlay (`/overlay`) is designed to be used as an OBS Browser Source. It pol
 
 ## Match Day Workflow Example (RvB)
 
-1. Enter the RvB scoring server IP.
+1. Check that the line under the scoring server field says it's connected (click **Find** if not).
 2. Load from Sheet or manually enter the 4 team numbers.
 3. Click **Save RvB Config**.
 4. Use the scoring controls to run the match.

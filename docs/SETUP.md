@@ -66,8 +66,8 @@ PORT=8080
 ```
 
 > **Note:** The Apps Script URL and token are hardcoded in `index.ts`. If you need to change them, edit the source directly:
-> - `APPS_SCRIPT_BASE` — the Google Apps Script web app URL
-> - `TOKEN` — the shared secret for Apps Script authentication
+> - `APPS_SCRIPT_BASE` - the Google Apps Script web app URL
+> - `TOKEN` - the shared secret for Apps Script authentication
 
 ### Google Sheets Integration
 
@@ -120,8 +120,8 @@ Row 2 = Red on-deck, Row 3 = Blue on-deck.
 
 For Red vs Blue mode, an external scoring server must be reachable on port `8080`. The server must implement:
 
-- `GET /scores` — returns current match scores and state
-- `POST /action` — accepts scoring actions
+- `GET /scores` - returns current match scores and state
+- `POST /action` - accepts scoring actions
 
 See [RvB-API.md](../RvB-API.md) in the project root for the full protocol.
 
@@ -141,5 +141,5 @@ Enter the server's IP or hostname in the RvB admin panel (e.g., `10.0.0.42` or `
 | `bun: command not found` | Install Bun from [bun.sh](https://bun.sh) |
 | Port 3000 is in use | Kill the other process or change the port in `index.ts` |
 | Sheet load fails | Verify the Apps Script URL and that the sheet is publicly readable by the script |
-| RvB scores don't update | Check that the RvB server IP is correct and port 8080 is open |
+| RvB scores don't update | Click **Find** next to the scoring server field. If nothing is found, check that the Pi is on, the Ethernet cable is plugged in, and Windows Internet Connection Sharing is still enabled on the laptop's Ethernet adapter (the laptop must be `192.168.137.1`) |
 | Overlay not showing in OBS | Ensure the Browser Source URL is correct and the server is running |

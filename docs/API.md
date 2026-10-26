@@ -22,7 +22,7 @@ The FMS server exposes a JSON HTTP API on the same port as the web UI (default `
   rvbBlue2: number;          // Blue alliance team 2
   rvbRed1: number;           // Red alliance team 1
   rvbRed2: number;           // Red alliance team 2
-  rvbServerIp: string;       // scoring server host
+  rvbServerIp: string;       // scoring server host (default 192.168.137.100; updated by discovery)
 }
 ```
 
@@ -32,7 +32,7 @@ The FMS server exposes a JSON HTTP API on the same port as the web UI (default `
 
 Returns the full current state object.
 
-**Response:** `200 OK` — JSON state object
+**Response:** `200 OK` - JSON state object
 
 ---
 
@@ -50,7 +50,7 @@ Partially updates the state. Only provided fields are changed. If any Sumo match
 }
 ```
 
-**Response:** `200 OK` — updated full state object
+**Response:** `200 OK` - updated full state object
 
 ---
 
@@ -58,7 +58,7 @@ Partially updates the state. Only provided fields are changed. If any Sumo match
 
 Starts the 2-minute match timer. Clears arrows and winner.
 
-**Response:** `200 OK` — updated state with `timerEnd` set
+**Response:** `200 OK` - updated state with `timerEnd` set
 
 ---
 
@@ -66,7 +66,7 @@ Starts the 2-minute match timer. Clears arrows and winner.
 
 Ends the match by clearing `timerEnd` and `winner`. No export occurs.
 
-**Response:** `200 OK` — updated state
+**Response:** `200 OK` - updated state
 
 ---
 
@@ -74,7 +74,7 @@ Ends the match by clearing `timerEnd` and `winner`. No export occurs.
 
 Resets only the timer (`timerEnd = null` and `winner = null`). Use this to repeat a match without changing team info.
 
-**Response:** `200 OK` — updated state
+**Response:** `200 OK` - updated state
 
 ---
 
@@ -91,8 +91,8 @@ Declares a winner. Stops the timer. Auto-triggers export to the sheet.
 Valid values: `"team1"` (Blue) or `"team2"` (Red).
 
 **Response:**
-- `200 OK` — updated state
-- `400 Bad Request` — invalid winner value
+- `200 OK` - updated state
+- `400 Bad Request` - invalid winner value
 
 ---
 
@@ -116,8 +116,8 @@ For **RvB**, also fetches live scores and exports:
 If omitted, uses `state.winner`.
 
 **Response:**
-- `200 OK` — text response from Apps Script (e.g., `"Scores Updated"`)
-- `502 Bad Gateway` — Apps Script error or network failure
+- `200 OK` - text response from Apps Script (e.g., `"Scores Updated"`)
+- `502 Bad Gateway` - Apps Script error or network failure
 
 ---
 
@@ -163,6 +163,27 @@ Proxies `GET /scores` from the RvB scoring server.
 
 **Response:** JSON score object from the RvB server, or `502` on failure.
 
+If the server can't be reached, this (and `POST /api/rvb-action` and the RvB part of `POST /api/export`) runs scoring server discovery and retries once on the host it finds.
+
+---
+
+### `GET /api/rvb-discovery`
+
+Returns the scoring server discovery status.
+
+**Response:**
+```json
+{ "status": "found", "host": "192.168.137.100", "checkedAt": 1715000000000, "serverIp": "192.168.137.100" }
+```
+
+`status` is `idle`, `searching`, `found` or `not-found`. `host` is the last host found (or `null`), and `serverIp` is the host currently in use.
+
+### `POST /api/rvb-discovery`
+
+Searches for the scoring server now, ignoring the retry cooldown, and returns the same shape as the `GET` once the search finishes.
+
+**Search order:** the current `rvbServerIp`, `192.168.137.100`, `rpi-fms.local`, `localhost`, then every address on `192.168.137.0/24` if this machine has an address there. A host counts only if its `GET /scores` returns a valid score object. After a failed search, automatic searches wait 10 seconds before trying again.
+
 ---
 
 ### `GET /api/rvb-actions`
@@ -195,13 +216,13 @@ Proxies a scoring action to the RvB server.
 }
 ```
 
-- `action` — must be one of the allowed actions
-- `count` — optional, integer 1–100, defaults to 1
+- `action` - must be one of the allowed actions
+- `count` - optional, integer 1-100, defaults to 1
 
 **Response:**
-- `200 OK` — text response from the RvB server
-- `400 Bad Request` — invalid action or count
-- `502 Bad Gateway` — RvB server unreachable
+- `200 OK` - text response from the RvB server
+- `400 Bad Request` - invalid action or count
+- `502 Bad Gateway` - RvB server unreachable
 
 ---
 

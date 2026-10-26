@@ -3,7 +3,11 @@ import {
   type State,
   type AppsScriptResponse,
   MATCH_DURATION_MS,
+  DEFAULT_RVB_SERVER_IP,
+  RVB_SERVER_HOSTNAME,
   normalizeRvbServerIp,
+  isRvbScoresResponse,
+  rvbCandidateHosts,
   mapSheetData,
   applyStateUpdate,
   applyStart,
@@ -56,6 +60,58 @@ const fullSheet: AppsScriptResponse = {
 };
 
 // --- mapSheetData ---
+
+describe("isRvbScoresResponse", () => {
+  const scores = {
+    redScore: 3, blueScore: 5, redAutoScore: 2, blueAutoScore: 0, redPens: 1, bluePens: 0,
+    matchRunning: true, matchReady: false, auto: false, paused: false,
+    displayedPhase: "Drive Your Robot!", timeRemaining: 90, redBlink: 0, blueBlink: 0,
+  };
+
+  test("accepts a scoring server /scores payload", () => {
+    expect(isRvbScoresResponse(scores)).toBe(true);
+  });
+
+  test("rejects other JSON", () => {
+    expect(isRvbScoresResponse(null)).toBe(false);
+    expect(isRvbScoresResponse([])).toBe(false);
+    expect(isRvbScoresResponse({ status: "ok" })).toBe(false);
+    expect(isRvbScoresResponse({ ...scores, redScore: "3" })).toBe(false);
+  });
+});
+
+describe("rvbCandidateHosts", () => {
+  const wifi = { address: "10.176.71.83", family: "IPv4", internal: false };
+  const ics = { address: "192.168.137.1", family: "IPv4", internal: false };
+  const loopback = { address: "127.0.0.1", family: "IPv4", internal: true };
+
+  test("tries the saved host first, then the default IP, hostname and localhost", () => {
+    const { preferred } = rvbCandidateHosts("10.0.0.42", [wifi]);
+    expect(preferred).toEqual(["10.0.0.42", DEFAULT_RVB_SERVER_IP, RVB_SERVER_HOSTNAME, "localhost"]);
+  });
+
+  test("does not repeat the saved host", () => {
+    const { preferred } = rvbCandidateHosts(DEFAULT_RVB_SERVER_IP, []);
+    expect(preferred).toEqual([DEFAULT_RVB_SERVER_IP, RVB_SERVER_HOSTNAME, "localhost"]);
+  });
+
+  test("skips the subnet scan when not on the ICS subnet", () => {
+    expect(rvbCandidateHosts("localhost", [wifi, loopback]).scan).toEqual([]);
+  });
+
+  test("scans the ICS subnet except its own and already-preferred addresses", () => {
+    const { scan } = rvbCandidateHosts("localhost", [wifi, ics, loopback]);
+    expect(scan).toHaveLength(252);
+    expect(scan).not.toContain("192.168.137.1");
+    expect(scan).not.toContain(DEFAULT_RVB_SERVER_IP);
+    expect(scan).toContain("192.168.137.2");
+    expect(scan).toContain("192.168.137.254");
+  });
+
+  test("accepts numeric address families", () => {
+    expect(rvbCandidateHosts("localhost", [{ ...ics, family: 4 }]).scan).toHaveLength(252);
+  });
+});
 
 describe("mapSheetData", () => {
   test("maps a full response", () => {
@@ -187,6 +243,11 @@ describe("applyStateUpdate", () => {
     expect(next.rvbRed1).toBe(3);
     expect(next.rvbRed2).toBe(4);
     expect(next.rvbServerIp).toBe("localhost");
+  });
+
+  test("an empty rvbServerIp falls back to the default scoring server IP", () => {
+    const next = applyStateUpdate(baseState, { rvbServerIp: "  " }, null);
+    expect(next.rvbServerIp).toBe(DEFAULT_RVB_SERVER_IP);
   });
 
   test("does not mutate the original state", () => {

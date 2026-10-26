@@ -55,6 +55,23 @@ export interface RvbScoresResponse {
 
 export const MATCH_DURATION_MS = 2 * 60 * 1000;
 
+// The Pi has a static IP on the Windows Internet Connection Sharing subnet (192.168.137.0/24)
+export const DEFAULT_RVB_SERVER_IP = "192.168.137.100";
+export const RVB_SERVER_HOSTNAME = "rpi-fms.local";
+const RVB_SCAN_PREFIX = "192.168.137.";
+
+export interface RvbDiscovery {
+  status: "idle" | "searching" | "found" | "not-found";
+  host: string | null;
+  checkedAt: number | null;
+}
+
+export interface InterfaceAddress {
+  address: string;
+  family: string | number;
+  internal: boolean;
+}
+
 export function normalizeRvbServerIp(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "localhost";
@@ -65,6 +82,34 @@ export function normalizeRvbServerIp(input: string): string {
   } catch {
     return "localhost";
   }
+}
+
+export function isRvbScoresResponse(data: unknown): data is RvbScoresResponse {
+  if (typeof data !== "object" || data === null) return false;
+  const d = data as Record<string, unknown>;
+  const numbers = ["redScore", "blueScore", "redAutoScore", "blueAutoScore", "redPens", "bluePens", "timeRemaining"];
+  return numbers.every((key) => typeof d[key] === "number") &&
+    typeof d.matchRunning === "boolean" &&
+    typeof d.displayedPhase === "string";
+}
+
+// Hosts to probe for the scoring server: `preferred` first (in order), then `scan` (every
+// address on the ICS subnet, only when this machine is on it).
+export function rvbCandidateHosts(
+  saved: string,
+  interfaces: InterfaceAddress[],
+): { preferred: string[]; scan: string[] } {
+  const preferred = [...new Set([saved, DEFAULT_RVB_SERVER_IP, RVB_SERVER_HOSTNAME, "localhost"])];
+  const own = interfaces
+    .filter((a) => !a.internal && (a.family === "IPv4" || a.family === 4))
+    .map((a) => a.address);
+  if (!own.some((address) => address.startsWith(RVB_SCAN_PREFIX))) return { preferred, scan: [] };
+  const scan: string[] = [];
+  for (let i = 1; i <= 254; i++) {
+    const host = `${RVB_SCAN_PREFIX}${i}`;
+    if (!own.includes(host) && !preferred.includes(host)) scan.push(host);
+  }
+  return { preferred, scan };
 }
 
 function toTeamNumber(value: unknown): number | null {
@@ -133,7 +178,9 @@ export function applyStateUpdate(
   if (typeof body.rvbBlue2 === "number") next.rvbBlue2 = body.rvbBlue2;
   if (typeof body.rvbRed1 === "number") next.rvbRed1 = body.rvbRed1;
   if (typeof body.rvbRed2 === "number") next.rvbRed2 = body.rvbRed2;
-  if (typeof body.rvbServerIp === "string") next.rvbServerIp = normalizeRvbServerIp(body.rvbServerIp);
+  if (typeof body.rvbServerIp === "string") {
+    next.rvbServerIp = body.rvbServerIp.trim() ? normalizeRvbServerIp(body.rvbServerIp) : DEFAULT_RVB_SERVER_IP;
+  }
 
   if (arrows) {
     next.arrows = arrows;

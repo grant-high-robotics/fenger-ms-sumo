@@ -19,7 +19,7 @@ This document explains how the Fenger Management System works under the hood.
        └──────────┘  └──────────┘  └──────────┘
 ```
 
-The entire application is a single Bun process serving two HTML UIs and a JSON API. There is no database — all state lives in memory.
+The entire application is a single Bun process serving two HTML UIs and a JSON API. There is no database - all state lives in memory.
 
 ## Server (`index.ts`)
 
@@ -47,6 +47,8 @@ All state transitions are pure functions:
 | `applyWinner` | Sets `winner` and clears `timerEnd` |
 | `mapSheetData` | Converts Apps Script response into the internal row format |
 | `normalizeRvbServerIp` | Sanitizes the RvB server IP input |
+| `isRvbScoresResponse` | Checks that a `/scores` reply really came from the scoring server |
+| `rvbCandidateHosts` | Builds the ordered list of hosts that scoring server discovery probes |
 
 This purity makes the logic trivial to unit test. See `handlers.test.ts`.
 
@@ -70,7 +72,7 @@ const state: State = {
   rvbBlue2: 2,
   rvbRed1: 3,
   rvbRed2: 4,
-  rvbServerIp: "localhost",
+  rvbServerIp: "192.168.137.100",
 };
 ```
 
@@ -146,6 +148,14 @@ FMS does not implement RvB scoring logic itself. Instead, it proxies commands to
 - Decouples the overlay/admin from the scoring server's network location
 - Allows the overlay to show RvB data through a single origin (avoids CORS issues)
 - Centralizes configuration (IP is stored in FMS state)
+
+### Finding the Scoring Server
+
+The Windows laptop shares its connection over Ethernet (Internet Connection Sharing), which puts it at `192.168.137.1`. The Pi has a static `192.168.137.100` on that link and advertises `rpi-fms.local`. So `192.168.137.100` is the default `rvbServerIp`.
+
+If a request to the scoring server fails to connect or times out (2s), `discoverRvbServer()` probes candidates from `rvbCandidateHosts()` in parallel. It tries the saved host, `192.168.137.100`, `rpi-fms.local` and `localhost` first, then the rest of `192.168.137.0/24` when the laptop has an address there. A host counts only if its `/scores` reply passes `isRvbScoresResponse()`, and the earliest match in that order wins. The result replaces `rvbServerIp`, and the failed request is retried once on it. HTTP error responses don't trigger discovery, because they mean the server is reachable. Only one search runs at a time, and after a failed search automatic searches pause for 10 seconds. Discovery also runs once at startup.
+
+The admin panel shows the connection status under the server field and has a **Find** button (`POST /api/rvb-discovery`). It only sends `rvbServerIp` when the operator has edited the field, so a host found by discovery isn't overwritten by the next RvB action.
 
 ### Flow
 
